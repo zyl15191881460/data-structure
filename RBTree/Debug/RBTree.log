@@ -1,0 +1,15 @@
+﻿生成启动时间为 2017/5/30 23:38:30。
+     1>项目“H:\数据结构\二叉树\RBTree\RBTree\RBTree.vcxproj”在节点 2 上(Build 个目标)。
+     1>ClCompile:
+         H:\vs2013\VS_2013\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D _MBCS /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt test.cpp
+         test.cpp
+     1>h:\数据结构\二叉树\rbtree\rbtree\rbtree-iterator.hpp(256): warning C4715: “RBTree<int,int>::Insert”: 不是所有的控件路径都返回值
+       Link:
+         H:\vs2013\VS_2013\VC\bin\link.exe /ERRORREPORT:PROMPT /OUT:"H:\数据结构\二叉树\RBTree\Debug\RBTree.exe" /INCREMENTAL /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"H:\数据结构\二叉树\RBTree\Debug\RBTree.pdb" /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"H:\数据结构\二叉树\RBTree\Debug\RBTree.lib" /MACHINE:X86 Debug\RBTree.obj
+         Debug\test.obj
+         RBTree.vcxproj -> H:\数据结构\二叉树\RBTree\Debug\RBTree.exe
+     1>已完成生成项目“H:\数据结构\二叉树\RBTree\RBTree\RBTree.vcxproj”(Build 个目标)的操作。
+
+生成成功。
+
+已用时间 00:00:02.12
