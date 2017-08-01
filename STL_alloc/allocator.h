@@ -6,9 +6,7 @@ using namespace std;
 template<int inst>
 class _Malloc_alloc_
 {
-private:
-	static void* oom_malloc(size_t);
-	static void* oom_realloc(void *, size_t);
+public:
 	static void(*_malloc_alloc_oom_handler) ();  //用户自定义的一个处理函数(把申请的但没有用的空间释放掉)
 
 public:
@@ -33,58 +31,56 @@ public:
 		return result;
 	}
 
-	static void (* set_malloc_handler(void (*f)()))()
+	static void* oom_malloc(size_t n)
+	{
+		void(*my_malloc_handler)();
+		void* result;
+		for (;;)  //死循环式的申请空间
+		{
+			my_malloc_handler = _malloc_alloc_oom_handler;
+			if (0 == my_malloc_handler)
+			{
+				_THROW_BAD_ALLOC;
+			}
+			(*my_malloc_handler)(); //这个函数是用户自己实现的，把已经申请但没有用的空间释放掉，重新进行配置
+			result = malloc(n);
+			if (result)
+				return result;
+		}
+	}
+
+	static void* oom_realloc(void* p, size_t n)
+	{
+		void(*my_malloc_handler)();
+		void* result;
+		for (;;)
+		{
+			my_malloc_handler = _malloc_alloc_oom_handler;
+			if (0 == my_malloc_handler)
+			{
+				_THROW_BAD_ALLOC;
+			}
+			(*my_malloc_handler)();
+			result = realloc(p, n);
+			if (result)
+				return result;
+		}
+	}
+	static void(*set_malloc_handler(void(*f)()))()
 	{
 		void(*old)() = _malloc_alloc_oom_handler;
 		_malloc_alloc_oom_handler = f;
 		return old;
 	}
 };
+
 template<int inst>
 void(*_Malloc_alloc_<inst>::_malloc_alloc_oom_handler)() = 0;
 
-template<int inst>
-void *_Malloc_alloc_<inst>::oom_malloc(size_t n)
-{
-	void(*my_malloc_handler)();
-	void* result;
-	for (;;)  //死循环式的申请空间
-	{
-		my_malloc_handler = _malloc_alloc_oom_handler;
-		if (0 == my_malloc_handler)
-		{
-			_THROW_BAD_ALLOC;
-		}
-		(*my_malloc_handler)(); //这个函数是用户自己实现的，把已经申请但没有用的空间释放掉，重新进行配置
-		result = malloc(n);
-		if (result) 
-			return result;
-	}
-}
 
-template<int inst>
-void *_Malloc_alloc_<inst>::oom_realloc(void* p, size_t n)
-{
-	void (* my_malloc_handler)();
-	void* result;
-	for (;;)
-	{
-		my_malloc_handler = _malloc_alloc_oom_handler;
-		if (0 == my_malloc_handler)
-		{
-			_THROW_BAD_ALLOC;
-		}
-		(*my_malloc_handler)();
-		result = realloc(p, n);
-		if (result)
-			return result;
-	}
-}
-
-
-enum {_ALIGN = 8};						//小型区块的上调边界
-enum {_MAX_BYTES = 128};				//小型区块的上限
-enum {_NFREELISTS = _MAX_BYTES/_ALIGN}; //free-list个数
+enum { _ALIGN = 8 };						//小型区块的上调边界
+enum { _MAX_BYTES = 128 };				//小型区块的上限
+enum { _NFREELISTS = _MAX_BYTES / _ALIGN }; //free-list个数
 
 template<bool threads, int inst>
 class _Default_alloc_
@@ -103,6 +99,7 @@ private:
 	};
 private:
 	//每8个字节一个单位 8 16 24 32 40 48 56 64 72 80 88 96 104 112 120 128  16个free_lists
+	//以8字节开始是为了支持32和64位平台，可移植性高
 	static obj* volatile free_list[_NFREELISTS];
 	static size_t FREELIST_INDEX(size_t bytes)			//根据区块的大小，决定使用第n号free_list。n从0开始
 	{
@@ -136,7 +133,7 @@ public:
 		obj *q = (obj *)p;
 		obj * volatile * my_free_list;
 		if (n > (size_t _MAX_BYTES))					//大于128直接交由一级空间配置器解决；
-	 	{
+		{
 			_Malloc_alloc_<0>::deallocate(p, n);
 			return;
 		}
@@ -177,7 +174,7 @@ void* _Default_alloc_<threads, inst>::refill(size_t n)
 	{
 		current_obj = next_obj;
 		next_obj = (obj*)((char*)next_obj + n);		//每次next_obj的调整是根据n的偏移量来调整的
-		if (nobjs - 1 == i)							
+		if (nobjs - 1 == i)
 		{
 			current_obj->free_list_link = 0;
 			break;
@@ -196,7 +193,7 @@ char* _Default_alloc_<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 	char * result;
 	size_t total_bytes = size*nobjs;
 	size_t bytes_left = end_free - start_free;		//内存剩余空间
-	
+
 	if (bytes_left >= total_bytes)					//内存池完全满足所需
 	{
 		result = start_free;
@@ -225,7 +222,7 @@ char* _Default_alloc_<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 		{
 			int i;
 			obj  * volatile * my_free_list, *p;
-			for (i = size; i <= _MAX_BYTES; i += _ALIGN)   //在大于size的free_list中找是否存在申请了但没有用的空间
+			for (i = size; i <= _MAX_BYTES; i += _ALIGN)   //在大于size的free_list中找是否存在申请了但没有用的空间,从size开始可以避免多线程存在的安全隐患
 			{
 				my_free_list = free_list + FREELIST_INDEX(i);
 				p = *my_free_list;
@@ -238,7 +235,7 @@ char* _Default_alloc_<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 					//注意，任何剩余的不能满足需求的剩余空间存于合适的free_list，避免内存泄漏
 				}
 			}
-			end_free = 0;	//???
+			end_free = 0;	//此处可能出现一级空间配置器出现的抛异常情况，可能出现start_free为空，但end_free不为空，所形成的空间不可知，在使用的时候就奔溃
 			start_free = (char *)_Malloc_alloc_<inst>::allocate(bytes_to_get);//调用一级空间配置器，已用my_malloc_handler尝试找空间
 		}
 		heap_size += bytes_to_get;
@@ -247,26 +244,32 @@ char* _Default_alloc_<threads, inst>::chunk_alloc(size_t size, int& nobjs)
 	}
 }
 
+#ifdef USE_MALLOC
+typedef _Malloc_alloc_ _Alloc;
+#else
+typedef _Default_alloc_<false, 0> _Alloc;
+#endif
 
+template<class T, class Alloc>
+class Simple_alloc
+{
+public:
+	static T* allocate(size_t n)
+	{
+		return (0 == n) ? 0 : (T*)Alloc::allocate(n*sizeof(T));
+	}
+	static T* allocate(void)
+	{
+		return (T*)Alloc::allocate(sizeof(T));
+	}
+	static void deallocate(T* p, size_t n)
+	{
+		if (0 != n)
+			Alloc::deallocate(p, n * sizeof(T));
+	}
+	static void deallocate(T* p)
+	{
+		Alloc::deallocate(p, sizeof(p));
+	}
+};
 
-
-
-
-//int main()
-//{
-//	_Malloc_alloc_<0> m;
-//	void * p = NULL;
-//	for (size_t i = 0; i < 10; i++)
-//	{
-//		p = m.allocate(1);
-//		printf("%d->%p  ", i, p);
-//	}
-//	_Default_alloc_<false, 0> d;
-//	void * p = NULL;
-//	for (size_t i = 0; i < 10; i++)
-//	{
-//		p = d.allocate(4);
-//		printf("%d->%p  ", i, p);
-//	}
-//	return 0;
-//}
